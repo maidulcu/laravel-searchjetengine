@@ -38,7 +38,6 @@ trait Searchable
         return $this->getKeyName();
     }
 
-
     /**
      * Index this model to SearchJet.
      */

@@ -38,17 +38,11 @@ class SearchJetServiceProvider extends ServiceProvider
                 __DIR__.'/../config/searchjet.php' => config_path('searchjet.php'),
             ], 'searchjet-config');
 
-            $this->publishes([
-                __DIR__.'/../database/migrations' => database_path('migrations'),
-            ], 'searchjet-migrations');
-
             $this->commands([
                 InstallCommand::class,
                 IndexCommand::class,
                 SearchCommand::class,
             ]);
         }
-
-        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
     }
 }

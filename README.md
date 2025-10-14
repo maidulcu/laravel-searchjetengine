@@ -342,7 +342,7 @@ The MIT License (MIT). Please see [License File](LICENSE.md) for more informatio
 
 ## 🆘 Support
 
-- [Documentation](https://docs.searchjetengine.com)
+- [Documentation](https://www.searchjetengine.com/docs/)
 - [GitHub Issues](https://github.com/searchjet/laravel-searchjet/issues)
 - [Email Support](mailto:support@searchjetengine.com)
 

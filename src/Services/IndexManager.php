@@ -7,6 +7,8 @@ use SearchJet\Laravel\Exceptions\SearchJetException;
 use SearchJet\Laravel\Events\DocumentIndexed;
 use SearchJet\Laravel\Events\DocumentDeleted;
 use SearchJet\Laravel\Events\DocumentsIndexed;
+use SearchJet\Laravel\Jobs\BulkIndexDocuments;
+use SearchJet\Laravel\Jobs\IndexModel;
 
 class IndexManager
 {
@@ -213,5 +215,53 @@ class IndexManager
     public function getIndex(): string
     {
         return $this->index;
+    }
+
+    /**
+     * Queue a single document for indexing.
+     */
+    public function queueDocument(array $document, string $queue = null): void
+    {
+        $job = new IndexModel($this->index, $document);
+
+        if ($queue) {
+            $job->onQueue($queue);
+        }
+
+        dispatch($job);
+    }
+
+    /**
+     * Queue multiple documents for bulk indexing.
+     */
+    public function queueDocuments(array $documents, int $batchSize = 1000, string $queue = null): void
+    {
+        if ($documents instanceof Collection) {
+            $documents = $documents->toArray();
+        }
+
+        if (!is_array($documents)) {
+            throw new SearchJetException('Documents must be an array or Collection.');
+        }
+
+        $batches = array_chunk($documents, $batchSize);
+
+        foreach ($batches as $batch) {
+            $job = new BulkIndexDocuments($this->index, $batch);
+
+            if ($queue) {
+                $job->onQueue($queue);
+            }
+
+            dispatch($job);
+        }
+    }
+
+    /**
+     * Bulk index documents with optional queueing.
+     */
+    public function bulkIndexAsync($documents, int $batchSize = 1000, string $queue = null): void
+    {
+        $this->queueDocuments($documents, $batchSize, $queue);
     }
 }

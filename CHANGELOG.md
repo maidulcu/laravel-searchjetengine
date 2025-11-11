@@ -35,6 +35,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `sync_errors_throw` - Control error handling for sync failures
 - Configuration options for events:
   - `events.enabled` - Enable/disable event dispatching
+- **Queue support** for asynchronous indexing
+  - `BulkIndexDocuments` job for batch indexing
+  - `IndexModel` job for single document indexing
+  - Methods: `queueDocument()`, `queueDocuments()`, `bulkIndexAsync()`
+  - Configurable queue names and batch sizes
+  - Automatic retry on failure (3 attempts by default)
+- **Comprehensive test suite**
+  - IndexManagerTest for index operations
+  - RateLimiterTest for rate limiting logic
+  - SearchableTraitTest for model trait functionality
+  - EventsTest for event dispatching
 
 ### Fixed
 - **InstallCommand examples** now include required `--model` parameter
@@ -47,6 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rate limiting prevents accidental API abuse
 - More comprehensive documentation
 - Events allow for custom handling of indexing and search operations
+- Queue support enables background processing for large indexing jobs
+- Improved test coverage across all major components
 
 ## [1.0.0] - 2024-01-15
 

@@ -7,6 +7,7 @@ use SearchJet\Laravel\Services\SearchJetClient;
 use SearchJet\Laravel\Commands\InstallCommand;
 use SearchJet\Laravel\Commands\IndexCommand;
 use SearchJet\Laravel\Commands\SearchCommand;
+use SearchJet\Laravel\Commands\HealthCheckCommand;
 
 class SearchJetServiceProvider extends ServiceProvider
 {
@@ -42,6 +43,7 @@ class SearchJetServiceProvider extends ServiceProvider
                 InstallCommand::class,
                 IndexCommand::class,
                 SearchCommand::class,
+                HealthCheckCommand::class,
             ]);
         }
     }

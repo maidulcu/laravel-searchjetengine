@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **PATCH method** to SearchJetClient for HTTP PATCH requests
+- **Auto-sync functionality** with SearchJetObserver for automatic model synchronization
+- **Health check command** (`searchjet:health`) to verify API connectivity and configuration
+- **Input validation** for SearchJetClient constructor with descriptive error messages
+- **PHPUnit configuration** (phpunit.xml.dist) for running tests
+- **.env.example** file with all available configuration options
+- **CONTRIBUTING.md** with guidelines for contributors
+- **SECURITY.md** with security policy and vulnerability reporting procedures
+- Configuration options for auto-sync behavior:
+  - `auto_sync` - Enable/disable automatic model synchronization
+  - `sync_errors_throw` - Control error handling for sync failures
+
+### Fixed
+- **InstallCommand examples** now include required `--model` parameter
+- **SearchJetClient constructor** now validates API key, base URL, and URL format
+
+### Improved
+- Better error messages with actionable guidance
+- Enhanced logging for model synchronization failures
+- More comprehensive documentation
+
 ## [1.0.0] - 2024-01-15
 
 ### Added

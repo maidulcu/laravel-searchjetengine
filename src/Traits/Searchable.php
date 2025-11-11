@@ -3,9 +3,19 @@
 namespace SearchJet\Laravel\Traits;
 
 use SearchJet\Laravel\Services\SearchJetClient;
+use SearchJet\Laravel\Observers\SearchJetObserver;
 
 trait Searchable
 {
+    /**
+     * Boot the searchable trait for the model.
+     */
+    public static function bootSearchable(): void
+    {
+        if (config('searchjet.auto_sync', true)) {
+            static::observe(SearchJetObserver::class);
+        }
+    }
     /**
      * Get the index name for this model.
      */

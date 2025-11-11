@@ -19,6 +19,18 @@ class SearchJetClient
 
     public function __construct(string $apiKey, string $baseUrl, ?string $siteId = null)
     {
+        if (empty($apiKey)) {
+            throw new SearchJetException('SearchJet API key is required. Please set SEARCHJET_API_KEY in your .env file.');
+        }
+
+        if (empty($baseUrl)) {
+            throw new SearchJetException('SearchJet base URL is required. Please set SEARCHJET_BASE_URL in your .env file.');
+        }
+
+        if (!filter_var($baseUrl, FILTER_VALIDATE_URL)) {
+            throw new SearchJetException('Invalid SearchJet base URL provided: ' . $baseUrl);
+        }
+
         $this->apiKey = $apiKey;
         $this->baseUrl = rtrim($baseUrl, '/');
         $this->siteId = $siteId;
@@ -116,6 +128,14 @@ class SearchJetClient
     public function delete(string $endpoint): array
     {
         return $this->request('DELETE', $endpoint);
+    }
+
+    /**
+     * Make a PATCH request.
+     */
+    public function patch(string $endpoint, array $data = []): array
+    {
+        return $this->request('PATCH', $endpoint, $data);
     }
 
     /**

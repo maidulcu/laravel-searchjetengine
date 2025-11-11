@@ -17,6 +17,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Auto Sync Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Automatically sync model changes to SearchJet when models are created,
+    | updated, or deleted. This uses Laravel model observers.
+    |
+    */
+
+    'auto_sync' => env('SEARCHJET_AUTO_SYNC', true),
+    'sync_errors_throw' => env('SEARCHJET_SYNC_ERRORS_THROW', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Default Search Settings
     |--------------------------------------------------------------------------
     |

@@ -35,7 +35,7 @@ class InstallCommand extends Command
         $this->newLine();
         $this->info('Next steps:');
         $this->line('1. Add your SearchJet API key to your .env file');
-        $this->line('2. Run: php artisan searchjet:index your-model-name');
+        $this->line('2. Run: php artisan searchjet:index your-index-name --model=App\\Models\\YourModel');
         $this->line('3. Start searching with: SearchJet::search("your-index")->query("search term")');
 
         return self::SUCCESS;
@@ -86,7 +86,7 @@ class InstallCommand extends Command
         $this->newLine();
         
         $this->line('3. Index your models:');
-        $this->line('   php artisan searchjet:index products');
+        $this->line('   php artisan searchjet:index products --model=App\\Models\\Product');
         $this->newLine();
         
         $this->line('4. Start searching:');

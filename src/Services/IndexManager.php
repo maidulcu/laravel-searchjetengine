@@ -4,6 +4,9 @@ namespace SearchJet\Laravel\Services;
 
 use Illuminate\Support\Collection;
 use SearchJet\Laravel\Exceptions\SearchJetException;
+use SearchJet\Laravel\Events\DocumentIndexed;
+use SearchJet\Laravel\Events\DocumentDeleted;
+use SearchJet\Laravel\Events\DocumentsIndexed;
 
 class IndexManager
 {
@@ -21,7 +24,13 @@ class IndexManager
      */
     public function addDocument(array $document): array
     {
-        return $this->client->post("indexes/{$this->index}/documents", $document);
+        $response = $this->client->post("indexes/{$this->index}/documents", $document);
+
+        if (config('searchjet.events.enabled', true)) {
+            event(new DocumentIndexed($this->index, $document, $response));
+        }
+
+        return $response;
     }
 
     /**
@@ -29,7 +38,13 @@ class IndexManager
      */
     public function addDocuments(array $documents): array
     {
-        return $this->client->post("indexes/{$this->index}/documents", $documents);
+        $response = $this->client->post("indexes/{$this->index}/documents", $documents);
+
+        if (config('searchjet.events.enabled', true)) {
+            event(new DocumentsIndexed($this->index, count($documents), $response));
+        }
+
+        return $response;
     }
 
     /**
@@ -54,7 +69,13 @@ class IndexManager
      */
     public function deleteDocument(string $id): array
     {
-        return $this->client->delete("indexes/{$this->index}/documents/{$id}");
+        $response = $this->client->delete("indexes/{$this->index}/documents/{$id}");
+
+        if (config('searchjet.events.enabled', true)) {
+            event(new DocumentDeleted($this->index, $id, $response));
+        }
+
+        return $response;
     }
 
     /**

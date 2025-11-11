@@ -16,9 +16,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **.env.example** file with all available configuration options
 - **CONTRIBUTING.md** with guidelines for contributors
 - **SECURITY.md** with security policy and vulnerability reporting procedures
+- **HTTP retry logic** with exponential backoff for failed requests
+  - Configurable retry attempts and delays
+  - Smart retry logic (doesn't retry on auth errors or client errors except rate limiting)
+  - Automatic exponential backoff delay calculation
+- **Rate limiting** to prevent API abuse
+  - RateLimiter service with per-minute request limits
+  - Configurable via `SEARCHJET_RATE_LIMITING_ENABLED` and `SEARCHJET_MAX_REQUESTS_PER_MINUTE`
+  - Tracks remaining requests and provides retry-after information
+- **Event dispatching** for search and indexing operations
+  - `DocumentIndexed` - Fired when a single document is indexed
+  - `DocumentsIndexed` - Fired when multiple documents are indexed
+  - `DocumentDeleted` - Fired when a document is deleted
+  - `SearchPerformed` - Fired when a search is executed
+  - Configurable via `SEARCHJET_EVENTS_ENABLED`
 - Configuration options for auto-sync behavior:
   - `auto_sync` - Enable/disable automatic model synchronization
   - `sync_errors_throw` - Control error handling for sync failures
+- Configuration options for events:
+  - `events.enabled` - Enable/disable event dispatching
 
 ### Fixed
 - **InstallCommand examples** now include required `--model` parameter
@@ -27,7 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Improved
 - Better error messages with actionable guidance
 - Enhanced logging for model synchronization failures
+- HTTP requests now automatically retry on transient failures
+- Rate limiting prevents accidental API abuse
 - More comprehensive documentation
+- Events allow for custom handling of indexing and search operations
 
 ## [1.0.0] - 2024-01-15
 

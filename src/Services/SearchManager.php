@@ -4,6 +4,7 @@ namespace SearchJet\Laravel\Services;
 
 use Illuminate\Support\Facades\Cache;
 use SearchJet\Laravel\Exceptions\SearchJetException;
+use SearchJet\Laravel\Events\SearchPerformed;
 
 class SearchManager
 {
@@ -48,6 +49,11 @@ class SearchManager
         // Track analytics if enabled
         if (config('searchjet.analytics.enabled', true)) {
             $this->trackSearch($query, $options, $response);
+        }
+
+        // Dispatch search event if enabled
+        if (config('searchjet.events.enabled', true)) {
+            event(new SearchPerformed($this->index, $query, $options, $response));
         }
 
         return $response;

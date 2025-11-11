@@ -16,6 +16,7 @@ class SearchJetClient
     protected string $apiKey;
     protected string $baseUrl;
     protected ?string $siteId;
+    protected RateLimiter $rateLimiter;
 
     public function __construct(string $apiKey, string $baseUrl, ?string $siteId = null)
     {
@@ -34,6 +35,7 @@ class SearchJetClient
         $this->apiKey = $apiKey;
         $this->baseUrl = rtrim($baseUrl, '/');
         $this->siteId = $siteId;
+        $this->rateLimiter = new RateLimiter();
 
         $this->httpClient = new Client([
             'base_uri' => $this->baseUrl,
@@ -72,30 +74,87 @@ class SearchJetClient
     }
 
     /**
-     * Make an HTTP request to the SearchJet API.
+     * Make an HTTP request to the SearchJet API with retry logic.
      */
     public function request(string $method, string $endpoint, array $data = []): array
     {
-        $url = $this->buildUrl($endpoint);
-        
-        try {
-            $options = [];
-            
-            if (!empty($data)) {
-                if (in_array(strtoupper($method), ['GET', 'HEAD'])) {
-                    $options['query'] = $data;
-                } else {
-                    $options['json'] = $data;
-                }
-            }
+        // Check rate limit before making request
+        $this->rateLimiter->check();
 
-            $response = $this->httpClient->request($method, $url, $options);
-            
-            return json_decode($response->getBody()->getContents(), true) ?? [];
-            
-        } catch (RequestException $e) {
-            $this->handleRequestException($e);
+        $url = $this->buildUrl($endpoint);
+        $maxAttempts = config('searchjet.http.retry_attempts', 3);
+        $retryDelay = config('searchjet.http.retry_delay', 1000); // milliseconds
+        $attempt = 0;
+        $lastException = null;
+
+        while ($attempt < $maxAttempts) {
+            try {
+                $options = [];
+
+                if (!empty($data)) {
+                    if (in_array(strtoupper($method), ['GET', 'HEAD'])) {
+                        $options['query'] = $data;
+                    } else {
+                        $options['json'] = $data;
+                    }
+                }
+
+                $response = $this->httpClient->request($method, $url, $options);
+
+                return json_decode($response->getBody()->getContents(), true) ?? [];
+
+            } catch (RequestException $e) {
+                $lastException = $e;
+                $attempt++;
+
+                // Check if we should retry based on the error type
+                if (!$this->shouldRetry($e, $attempt, $maxAttempts)) {
+                    break;
+                }
+
+                // Calculate exponential backoff delay
+                $delay = $retryDelay * pow(2, $attempt - 1);
+
+                Log::warning('SearchJet API request failed, retrying...', [
+                    'attempt' => $attempt,
+                    'max_attempts' => $maxAttempts,
+                    'delay_ms' => $delay,
+                    'endpoint' => $endpoint,
+                ]);
+
+                // Wait before retrying (convert milliseconds to microseconds)
+                usleep($delay * 1000);
+            }
         }
+
+        // All retries exhausted, handle the exception
+        $this->handleRequestException($lastException);
+    }
+
+    /**
+     * Determine if a request should be retried.
+     */
+    protected function shouldRetry(RequestException $e, int $attempt, int $maxAttempts): bool
+    {
+        // Don't retry if we've exhausted attempts
+        if ($attempt >= $maxAttempts) {
+            return false;
+        }
+
+        $statusCode = $e->getResponse()?->getStatusCode();
+
+        // Don't retry on authentication errors (401)
+        if ($statusCode === 401) {
+            return false;
+        }
+
+        // Don't retry on client errors (4xx) except rate limiting (429)
+        if ($statusCode >= 400 && $statusCode < 500 && $statusCode !== 429) {
+            return false;
+        }
+
+        // Retry on server errors (5xx), network errors, and rate limiting
+        return true;
     }
 
     /**
@@ -200,5 +259,13 @@ class SearchJetClient
     public function getSiteId(): ?string
     {
         return $this->siteId;
+    }
+
+    /**
+     * Get the rate limiter instance.
+     */
+    public function getRateLimiter(): RateLimiter
+    {
+        return $this->rateLimiter;
     }
 }

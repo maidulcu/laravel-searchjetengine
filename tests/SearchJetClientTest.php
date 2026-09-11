@@ -9,8 +9,8 @@ class SearchJetClientTest extends TestCase
     public function test_can_create_searchjet_client()
     {
         $client = new SearchJetClient('test-api-key', 'https://api.test.com', 'test-site-id');
-        
-        $this->assertEquals('test-api-key', $client->getApiKey());
+
+        // Do not expose API key via public method (Security: #2)
         $this->assertEquals('https://api.test.com', $client->getBaseUrl());
         $this->assertEquals('test-site-id', $client->getSiteId());
     }

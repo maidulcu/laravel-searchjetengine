@@ -17,6 +17,26 @@ A powerful Laravel package for integrating SearchJet's AI-powered search capabil
 - **Rate Limiting**: Protection against API abuse
 - **Artisan Commands**: Easy-to-use CLI tools for indexing and management
 
+## 🔒 Security & Performance
+
+> **⚠️ Important**: A comprehensive security and performance audit has been completed. Before using this package in production, review the findings and recommendations.
+
+**Security Audit Status:**
+- ✅ Audit Complete: [SECURITY_PERFORMANCE_AUDIT.md](./SECURITY_PERFORMANCE_AUDIT.md)
+- ⚠️ 9 Security vulnerabilities identified (3 CRITICAL, 3 HIGH, 3 MEDIUM)
+- 🐛 8 Performance issues identified (2 HIGH, 6 MEDIUM)
+- 🧪 Comprehensive test suite added for validation
+
+**Recommended Actions Before Production:**
+1. Review [SECURITY_PERFORMANCE_AUDIT.md](./SECURITY_PERFORMANCE_AUDIT.md)
+2. Address critical security issues (see audit for details)
+3. Enable security tests: `composer test tests/SecurityAuditTest.php`
+4. Run performance tests: `composer test tests/PerformanceAuditTest.php`
+5. Follow implementation guide in [TESTING.md](./TESTING.md)
+
+**Security Reporting:**
+If you discover a security vulnerability, please email **security@searchjetengine.com** instead of using the issue tracker.
+
 ## 📦 Installation
 
 You can install the package via Composer:

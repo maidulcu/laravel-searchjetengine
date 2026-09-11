@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security & Performance Audit - 2026-09-11
+
+#### Security Findings
+- 9 security vulnerabilities identified and documented
+  - 3 CRITICAL: API key exposure, data indexing without filtering
+  - 3 HIGH: No input validation, missing HTTPS enforcement, no rate limiting
+  - 3 MEDIUM: Predictable cache keys, exception disclosure, no key rotation
+
+#### Performance Issues
+- 8 performance bottlenecks identified
+  - 2 HIGH: Inefficient cache keys (~60% improvement), analytics default enabled
+  - 6 MEDIUM: No query validation, missing connection pooling, bulk operation inefficiency
+
+#### Documentation Added
+- `SECURITY_PERFORMANCE_AUDIT.md` - Comprehensive audit with remediation code examples
+- `TESTING.md` - Testing guide and CI/CD integration
+- `SecurityAuditTest.php` - 10 security test cases
+- `PerformanceAuditTest.php` - 11 performance test cases
+
+**Note:** These tests intentionally fail until security and performance fixes are implemented (TDD approach).
+
+**Status:** Ready for implementation sprint - see audit document for prioritized recommendations.
+
 ## [1.0.0] - 2024-01-15
 
 ### Added

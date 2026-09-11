@@ -31,5 +31,9 @@ abstract class TestCase extends Orchestra
         config()->set('searchjet.api_key', 'test-api-key');
         config()->set('searchjet.base_url', 'https://api.test.com');
         config()->set('searchjet.site_id', 'test-site-id');
+
+        // Set security-aware defaults for testing
+        config()->set('searchjet.analytics.enabled', false); // Performance: #2
+        config()->set('searchjet.defaults.attributes_to_retrieve', ['id', 'title']); // Performance: #7
     }
 }

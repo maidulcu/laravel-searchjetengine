@@ -9,10 +9,21 @@ class SearchJetClientTest extends TestCase
     public function test_can_create_searchjet_client()
     {
         $client = new SearchJetClient('test-api-key', 'https://api.test.com', 'test-site-id');
-        
-        $this->assertEquals('test-api-key', $client->getApiKey());
+
         $this->assertEquals('https://api.test.com', $client->getBaseUrl());
         $this->assertEquals('test-site-id', $client->getSiteId());
+    }
+
+    public function test_requires_https_base_url()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new SearchJetClient('test-api-key', 'http://api.test.com', 'test-site-id');
+    }
+
+    public function test_requires_api_key()
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new SearchJetClient('', 'https://api.test.com', 'test-site-id');
     }
 
     public function test_can_get_index_manager()

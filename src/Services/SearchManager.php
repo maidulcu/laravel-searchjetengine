@@ -23,8 +23,15 @@ class SearchManager
      */
     public function query(string $query, array $options = []): array
     {
+        if (strlen($query) > 10000) {
+            throw new SearchJetException('Query exceeds maximum length of 10000 characters');
+        }
+
         $options = array_merge($this->defaults, $options);
         $options['q'] = $query;
+
+        $options['limit'] = max(1, min((int)($options['limit'] ?? 20), 100));
+        $options['offset'] = max(0, (int)($options['offset'] ?? 0));
 
         // Check cache if enabled
         if (config('searchjet.cache.enabled', true)) {

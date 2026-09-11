@@ -19,6 +19,14 @@ class SearchJetClient
 
     public function __construct(string $apiKey, string $baseUrl, ?string $siteId = null)
     {
+        if (empty($apiKey)) {
+            throw new \InvalidArgumentException('API key is required');
+        }
+
+        if (parse_url($baseUrl, PHP_URL_SCHEME) !== 'https') {
+            throw new \InvalidArgumentException('Base URL must use HTTPS');
+        }
+
         $this->apiKey = $apiKey;
         $this->baseUrl = rtrim($baseUrl, '/');
         $this->siteId = $siteId;
@@ -156,14 +164,6 @@ class SearchJetClient
             default:
                 throw new SearchJetException('SearchJet API request failed: ' . ($body ?: $e->getMessage()));
         }
-    }
-
-    /**
-     * Get the API key.
-     */
-    public function getApiKey(): string
-    {
-        return $this->apiKey;
     }
 
     /**

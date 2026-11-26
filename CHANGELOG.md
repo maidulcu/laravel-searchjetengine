@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed (breaking: 2.0.0)
+## [2.0.0] - 2026-11-26
+
+### Changed (breaking)
 Rewritten to match the SearchJet API as it is today. 1.0.0 called endpoints that never existed (`/sites/{id}/indexes/{index}/search`, `/multi-search`, `/analytics/queries`, ...) and did not work.
 
 - Search uses `GET /v1/search` with the public search key (fetched from `/v1/client-info` when not configured). Responses include `search_id`.
@@ -24,6 +26,10 @@ Rewritten to match the SearchJet API as it is today. 1.0.0 called endpoints that
 - Package-side result caching, rate limiting and the `site_id` setting (the API key identifies the site).
 - `searchjet:install` and `searchjet:index` commands (use `vendor:publish` and `searchjet:import`).
 - The examples folder.
+
+### Added
+- GitHub Actions tests for PHP 8.2–8.4 on Laravel 11 and 12.
+- CONTRIBUTING guide and issue templates.
 
 ## [1.0.0] - 2024-01-15
 
@@ -62,3 +68,6 @@ Rewritten to match the SearchJet API as it is today. 1.0.0 called endpoints that
 - PHP ^8.2
 - Laravel ^11.0|^12.0
 - GuzzleHttp ^7.0
+
+[Unreleased]: https://github.com/maidulcu/laravel-searchjetengine/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/maidulcu/laravel-searchjetengine/releases/tag/v2.0.0

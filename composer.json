@@ -52,5 +52,16 @@
     },
     "minimum-stability": "stable",
     "prefer-stable": true,
-    "homepage": "https://github.com/maidulcu/laravel-searchjetengine"
+    "homepage": "https://github.com/maidulcu/laravel-searchjetengine",
+    "authors": [
+        {
+            "name": "SearchJet",
+            "homepage": "https://searchjetengine.com"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/maidulcu/laravel-searchjetengine/issues",
+        "source": "https://github.com/maidulcu/laravel-searchjetengine",
+        "docs": "https://github.com/maidulcu/laravel-searchjetengine#readme"
+    }
 }

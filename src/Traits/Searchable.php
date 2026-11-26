@@ -2,20 +2,38 @@
 
 namespace SearchJet\Laravel\Traits;
 
-use SearchJet\Laravel\Services\SearchJetClient;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use SearchJet\Laravel\SearchJetClient;
 
+/**
+ * Index an Eloquent model in SearchJet.
+ *
+ * A SearchJet site has one index, so every model shares it. Each document gets
+ * a "type" (the table name by default) and an id of "{type}-{key}", so models
+ * of different types never overwrite each other.
+ */
 trait Searchable
 {
     /**
-     * Get the index name for this model.
+     * The document "type". Searches from this model filter on it.
      */
-    public function searchJetIndex(): string
+    public function searchJetType(): string
     {
         return $this->getTable();
     }
 
     /**
-     * Convert the model to a SearchJet document.
+     * The document id in SearchJet.
+     */
+    public function searchJetId(): string
+    {
+        return $this->searchJetType().'-'.$this->getKey();
+    }
+
+    /**
+     * The document sent to SearchJet. Override this to choose the fields.
+     * Common fields: title, content, excerpt, url, image, thumbnail, price, currency, sku,
+     * categories, tags, language.
      */
     public function toSearchJetDocument(): array
     {
@@ -23,198 +41,101 @@ trait Searchable
     }
 
     /**
-     * Get the primary key for SearchJet indexing.
+     * Send this model to the index (POST /v1/index/bulk).
      */
-    public function getSearchJetKey(): string
+    public function searchJetSync(): array
     {
-        return (string) $this->getKey();
+        return app(SearchJetClient::class)->index()->upsert([$this->searchJetPayload()]);
     }
 
     /**
-     * Get the key name for SearchJet indexing.
+     * Remove this model from the index (DELETE /v1/index/delete).
      */
-    public function getSearchJetKeyName(): string
+    public function searchJetRemove(): array
     {
-        return $this->getKeyName();
+        return app(SearchJetClient::class)->index()->delete($this->searchJetId());
     }
 
     /**
-     * Index this model to SearchJet.
+     * The document with its id and type set.
      */
-    public function searchJetAddToIndex(): array
+    public function searchJetPayload(): array
     {
-        return app(SearchJetClient::class)
-            ->index($this->searchJetIndex())
-            ->addDocument($this->toSearchJetDocument());
+        return array_merge($this->toSearchJetDocument(), [
+            'id' => $this->searchJetId(),
+            'type' => $this->searchJetType(),
+        ]);
     }
 
     /**
-     * Update this model in SearchJet.
+     * Search this model's documents (GET /v1/search with a type filter).
+     * Returns the raw API response, including search_id.
      */
-    public function searchJetUpdate(): array
+    public static function searchJet(string $query, array $params = [], array $context = []): array
     {
-        return app(SearchJetClient::class)
-            ->index($this->searchJetIndex())
-            ->updateDocument($this->getSearchJetKey(), $this->toSearchJetDocument());
+        $type = (new static)->searchJetType();
+        $typeFilter = 'type = "'.addcslashes($type, '"\\').'"';
+        $params['filters'] = empty($params['filters'])
+            ? $typeFilter
+            : '('.$params['filters'].') AND '.$typeFilter;
+
+        return app(SearchJetClient::class)->search($query, $params, $context);
     }
 
     /**
-     * Remove this model from SearchJet.
+     * Search and load the matching models from the database, in result order.
      */
-    public function searchJetDelete(): array
-    {
-        return app(SearchJetClient::class)
-            ->index($this->searchJetIndex())
-            ->deleteDocument($this->getSearchJetKey());
-    }
-
-    /**
-     * Check if this model should be automatically indexed.
-     */
-    public function shouldBeSearchJetIndexed(): bool
-    {
-        return true;
-    }
-
-    /**
-     * Get the attributes that should be indexed.
-     */
-    public function getSearchJetIndexableAttributes(): array
-    {
-        return $this->getFillable();
-    }
-
-    /**
-     * Get the attributes that should be searchable.
-     */
-    public function getSearchJetSearchableAttributes(): array
-    {
-        return $this->getSearchJetIndexableAttributes();
-    }
-
-    /**
-     * Get the attributes that should be filterable.
-     */
-    public function getSearchJetFilterableAttributes(): array
-    {
-        return $this->getSearchJetIndexableAttributes();
-    }
-
-    /**
-     * Get the attributes that should be sortable.
-     */
-    public function getSearchJetSortableAttributes(): array
-    {
-        return $this->getSearchJetIndexableAttributes();
-    }
-
-    /**
-     * Get the attributes that should be facetable.
-     */
-    public function getSearchJetFacetableAttributes(): array
-    {
-        return [];
-    }
-
-    /**
-     * Get the attributes that should be displayed in search results.
-     */
-    public function getSearchJetDisplayableAttributes(): array
-    {
-        return $this->getSearchJetIndexableAttributes();
-    }
-
-    /**
-     * Get the ranking rules for this model.
-     */
-    public function getSearchJetRankingRules(): array
-    {
-        return [
-            'words',
-            'typo',
-            'proximity',
-            'attribute',
-            'sort',
-            'exactness'
-        ];
-    }
-
-    /**
-     * Get the stop words for this model.
-     */
-    public function getSearchJetStopWords(): array
-    {
-        return [];
-    }
-
-    /**
-     * Get the synonyms for this model.
-     */
-    public function getSearchJetSynonyms(): array
-    {
-        return [];
-    }
-
-    /**
-     * Get the distinct attribute for this model.
-     */
-    public function getSearchJetDistinctAttribute(): ?string
-    {
-        return null;
-    }
-
-    /**
-     * Static method to search the model's index.
-     */
-    public static function searchJet(string $query, array $options = []): array
+    public static function searchJetModels(string $query, array $params = [], array $context = []): EloquentCollection
     {
         $instance = new static;
-        return app(SearchJetClient::class)
-            ->search($instance->searchJetIndex())
-            ->query($query, $options);
+        $response = static::searchJet($query, $params, $context);
+        $keys = [];
+        foreach ($response['results'] ?? [] as $hit) {
+            $key = $instance->searchJetKeyFromId((string) ($hit['id'] ?? ''));
+            if ($key !== null) {
+                $keys[] = $key;
+            }
+        }
+
+        if ($keys === []) {
+            return $instance->newCollection();
+        }
+
+        $models = static::query()->whereIn($instance->getKeyName(), $keys)->get()->keyBy(fn ($m) => (string) $m->getKey());
+
+        return $instance->newCollection(array_values(array_filter(
+            array_map(fn ($key) => $models->get((string) $key), $keys)
+        )));
     }
 
     /**
-     * Static method to get search results as a collection.
+     * Turn a document id from search results back into a model key.
+     * On the Free plan's shared index the API returns ids as "site_{siteId}_{id}".
      */
-    public static function searchJetGet(string $query, array $options = []): \Illuminate\Support\Collection
+    public function searchJetKeyFromId(string $id): ?string
     {
-        $instance = new static;
-        return app(SearchJetClient::class)
-            ->search($instance->searchJetIndex())
-            ->get($query, $options);
+        $id = preg_replace('/^site_\d+_/', '', $id);
+        $prefix = $this->searchJetType().'-';
+
+        return str_starts_with($id, $prefix) ? substr($id, strlen($prefix)) : null;
     }
 
     /**
-     * Static method to get the first search result.
+     * Send every model of this class to the index in batches. Returns the number sent.
      */
-    public static function searchJetFirst(string $query, array $options = []): ?array
+    public static function searchJetImport(int $chunkSize = 500, ?callable $onChunk = null): int
     {
-        $instance = new static;
-        return app(SearchJetClient::class)
-            ->search($instance->searchJetIndex())
-            ->first($query, $options);
-    }
+        $client = app(SearchJetClient::class);
+        $sent = 0;
 
-    /**
-     * Static method to count search results.
-     */
-    public static function searchJetCount(string $query, array $options = []): int
-    {
-        $instance = new static;
-        return app(SearchJetClient::class)
-            ->search($instance->searchJetIndex())
-            ->count($query, $options);
-    }
+        static::query()->chunkById($chunkSize, function ($models) use ($client, &$sent, $onChunk) {
+            $client->index()->upsert($models->map(fn ($m) => $m->searchJetPayload())->all());
+            $sent += $models->count();
+            if ($onChunk) {
+                $onChunk($models->count());
+            }
+        });
 
-    /**
-     * Static method to get paginated search results.
-     */
-    public static function searchJetPaginate(string $query, int $page = 1, int $perPage = 20, array $options = []): array
-    {
-        $instance = new static;
-        return app(SearchJetClient::class)
-            ->search($instance->searchJetIndex())
-            ->paginate($query, $page, $perPage, $options);
+        return $sent;
     }
 }

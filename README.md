@@ -1,356 +1,275 @@
-# SearchJet Laravel Package
+# SearchJet for Laravel
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/searchjet/laravel-searchjet.svg?style=flat-square)](https://packagist.org/packages/searchjet/laravel-searchjet)
-[![Total Downloads](https://img.shields.io/packagist/dt/searchjet/laravel-searchjet.svg?style=flat-square)](https://packagist.org/packages/searchjet/laravel-searchjet)
-[![License](https://img.shields.io/packagist/l/searchjet/laravel-searchjet.svg?style=flat-square)](https://packagist.org/packages/searchjet/laravel-searchjet)
+A Laravel 11/12 client for the [SearchJet](https://searchjetengine.com) search API: search, document indexing and search analytics.
 
-A powerful Laravel package for integrating SearchJet's AI-powered search capabilities into your Laravel applications. SearchJet provides lightning-fast, typo-tolerant search with advanced features like semantic search, analytics, and AI content generation.
+## Requirements
 
-## 🚀 Features
+- PHP 8.2+
+- Laravel 11 or 12
+- A SearchJet site and its API key (dashboard → your site → API keys)
 
-- **Lightning Fast Search**: Sub-150ms search results with instant autocomplete
-- **AI-Powered**: Semantic understanding with typo tolerance and synonyms
-- **Easy Integration**: Drop-in search solution with Laravel's Eloquent models
-- **Advanced Analytics**: Track search behavior and optimize content strategy
-- **Laravel Native**: Built specifically for Laravel with familiar patterns
-- **Caching Support**: Built-in caching for improved performance
-- **Rate Limiting**: Protection against API abuse
-- **Artisan Commands**: Easy-to-use CLI tools for indexing and management
-
-## 📦 Installation
-
-You can install the package via Composer:
+## Installation
 
 ```bash
 composer require searchjet/laravel-searchjet
 ```
 
-Publish the configuration file:
+The service provider and the `SearchJet` facade are registered automatically. To publish the config file:
 
 ```bash
 php artisan vendor:publish --tag=searchjet-config
 ```
 
-Run the installation command:
+Add the site API key to `.env`:
 
-```bash
-php artisan searchjet:install
+```dotenv
+SEARCHJET_API_KEY=your-site-api-key
 ```
 
-## ⚙️ Configuration
+| Variable | Default | Purpose |
+|---|---|---|
+| `SEARCHJET_API_KEY` | | Private site API key. Indexing, analytics, client info. Keep it on the server |
+| `SEARCHJET_SEARCH_KEY` | | Public search key for `/v1/search`. Optional: if empty, it is fetched from `/v1/client-info` and cached for an hour |
+| `SEARCHJET_BASE_URL` | `https://app.searchjetengine.com/api` | API base URL |
+| `SEARCHJET_HTTP_TIMEOUT` | `10` | Seconds |
+| `SEARCHJET_HTTP_RETRIES` | `2` | Retries after a connection failure (API errors are never retried) |
 
-Add your SearchJet credentials to your `.env` file:
+## How SearchJet is organised
 
-```env
-SEARCHJET_API_KEY=your_api_key_here
-SEARCHJET_BASE_URL=https://api.searchjetengine.com
-SEARCHJET_SITE_ID=your_site_id_here
-```
+- Each site has **one** search index. There are no index names; models of different kinds share it and are told apart by a `type` field.
+- Writes are queued. Indexing calls return a `taskUid`; the documents are searchable once the task has succeeded.
+- Search uses the public search key; everything else uses the private site API key. The package picks the right one.
 
-## 🔧 Basic Usage
-
-### Making Models Searchable
-
-Add the `Searchable` trait to your Eloquent models:
+## Searching
 
 ```php
+use SearchJet\Laravel\Facades\SearchJet;
+
+$response = SearchJet::search('running shoes', [
+    'limit' => 20,
+    'page' => 1,
+    'filters' => 'type = "product" AND price < 100',
+    'sort' => ['price:asc'],
+]);
+
+$response['search_id'];   // keep this to report clicks
+$response['results'];     // the hits
+$response['total'];       // estimated total
+$response['did_you_mean'] ?? null; // set when a zero-result search was corrected
+```
+
+`search()` sends `GET /v1/search`. The response also has `limit`, `offset`, `page`, `facet_distribution`, `facet_stats`, `processing_time_ms`, `remaining_quota` and `semantic_search_used`, plus `recovery` when SearchJet answered a zero-result search with a corrected or broader one (turn that off with `'recover' => false`).
+
+Parameters are passed through to the API. Arrays are sent comma-separated and booleans as `true`/`false`. Note that the search filter parameter is **`filters`** (plural).
+
+| Parameter | Plans | Notes |
+|---|---|---|
+| `limit`, `page`, `offset` | All | `limit` is 1–100, default 20 |
+| `filters` | All | Free: only `id, title, type, price, currency, sku, language, category, categories, tags, stock_status`. Pro+: any filterable field |
+| `sort` | Pro+ | e.g. `['price:asc']`. Free has no working sort |
+| `attributes` | All | Fields to return, limited by plan. Free returns only `id, title, url, type, thumbnail, price, currency, sku` |
+| `facets`, `highlightPreTag`, `highlightPostTag`, `cropLength`, `attributesToHighlight`, `attributesToCrop`, `matchingStrategy`, `typoTolerance`, `showMatchesPosition` | Pro+ | Ignored on Free |
+| `semantic`, `semanticRatio` | Pro+ | Hybrid search, when semantic search is enabled for the site. Falls back to keyword search if unavailable |
+| `recover` | All | `false` turns off no-result recovery |
+
+The search log records the request's user agent, referer and `X-Session-Id`. To log your visitor's instead of your server's, pass them as the third argument:
+
+```php
+SearchJet::search($q, [], [
+    'session_id' => session()->getId(),
+    'user_agent' => request()->userAgent(),
+    'referer' => request()->headers->get('referer'),
+]);
+```
+
+**Rate limit:** `/v1/search` allows 30 requests per minute per IP address. When your server searches on behalf of visitors, every visitor shares your server's IP, so this limit applies to your whole site. Plan accordingly (cache popular queries, debounce search-as-you-type).
+
+### Similar documents (Pro+)
+
+```php
+SearchJet::similar('products-42', ['limit' => 6]);
+```
+
+Sends `GET /v1/search/similar`. Needs semantic search enabled for the site. Here the filter parameter is `filter` (singular).
+
+## Indexing
+
+```php
+$index = SearchJet::index();
+
+// Add or replace documents (POST /v1/index/bulk). Each needs an "id".
+// Max 1,000 documents per call on Free, 5,000 on paid plans.
+$response = $index->upsert([
+    ['id' => 'post-1', 'title' => 'Hello', 'content' => '…', 'url' => 'https://example.com/hello', 'type' => 'post'],
+]);
+
+// Large sets, in batches of 500
+$index->upsertInBatches($documents, 500);
+
+// Replace the whole index with these documents (counts against the daily reindex limit)
+$index->upsert($documents, fullReindex: true);
+
+// Partial update: only the fields sent change (PATCH /v1/index/bulk)
+$index->patch([['id' => 'post-1', 'title' => 'Hello again']]);
+
+// Change fields of one document (POST /v1/index/update). Only these fields are accepted:
+// title, content, excerpt, url, author, date, type, sku, price, sale_price, regular_price,
+// currency, stock_status, image, thumbnail, categories, tags, language, _geo
+$index->update('post-1', ['price' => 19.99]);
+
+// Delete (DELETE /v1/index/delete, up to 500 ids at once)
+$index->delete('post-1');
+$index->deleteMany(['post-2', 'post-3']);
+
+// Delete by filter (POST /v1/index/delete-batch)
+$index->deleteWhere('type = "post"');
+
+// Read
+$index->find('post-1');   // GET /v1/index/{id}, null if not found
+$index->count();          // GET /v1/index/count
+$index->stats();          // GET /v1/index/stats
+$index->task($response['taskUid']); // GET /v1/index/tasks/{uid}: enqueued, processing, succeeded, failed
+```
+
+Documents on the Free plan are stored in a shared index, so search results there come back with ids like `site_123_post-1`.
+
+### Index settings (Pro+)
+
+```php
+$index->settings(); // GET /v1/index/settings
+$index->updateSettings([            // POST /v1/index/settings
+    'filterableAttributes' => ['type', 'price', 'categories'],
+    'sortableAttributes' => ['price'],
+    'synonyms' => ['tee' => ['t-shirt']],
+]);
+```
+
+Accepted keys: `filterableAttributes`, `sortableAttributes`, `searchableAttributes`, `displayedAttributes`, `stopWords`, `synonyms`, `distinctAttribute`, `typoTolerance`, `rankingRules`, `faceting`, `pagination`, `dictionary`, `separatorTokens`, `nonSeparatorTokens`. The Free plan's shared index cannot be configured.
+
+## Eloquent models
+
+```php
+use Illuminate\Database\Eloquent\Model;
 use SearchJet\Laravel\Traits\Searchable;
 
 class Product extends Model
 {
     use Searchable;
-    
-    // Optional: Customize the index name
-    public function searchJetIndex(): string
-    {
-        return 'products_v2';
-    }
-    
-    // Optional: Customize the document structure
+
     public function toSearchJetDocument(): array
     {
         return [
-            'id' => $this->id,
             'title' => $this->name,
-            'description' => $this->description,
-            'price' => $this->price,
-            'category' => $this->category->name,
-            'tags' => $this->tags->pluck('name'),
+            'content' => $this->description,
+            'url' => route('products.show', $this),
+            'price' => (float) $this->price,
+            'currency' => 'USD',
+            'sku' => $this->sku,
         ];
     }
 }
 ```
 
-### Indexing Documents
-
-Index all products:
-
-```bash
-php artisan searchjet:index products --model=App\\Models\\Product
-```
-
-Or index programmatically:
+Each document gets `type` = the table name (`products`) and `id` = `products-{key}`, so different models never overwrite each other. Override `searchJetType()` or `searchJetId()` to change that.
 
 ```php
-// Index a single model
-$product->searchJetAddToIndex();
+$product->searchJetSync();    // upsert this model
+$product->searchJetRemove();  // delete it from the index
 
-// Index all models
-Product::all()->each(function ($product) {
-    $product->searchJetAddToIndex();
-});
+Product::searchJet('laptop');                       // raw API response, filtered to type = "products"
+Product::searchJetModels('laptop', ['limit' => 10]); // Eloquent collection, in result order
 ```
 
-### Searching
-
-Search using the model:
+The package does not sync models automatically. Call `searchJetSync()` / `searchJetRemove()` from your own model events or jobs, for example:
 
 ```php
-// Simple search
-$results = Product::searchJet('laptop');
-
-// Advanced search with options
-$results = Product::searchJet('laptop', [
-    'limit' => 10,
-    'filter' => 'price > 100',
-    'sort' => ['price:asc'],
-    'facets' => ['category', 'brand'],
-]);
-
-// Get results as collection
-$products = Product::searchJetGet('laptop');
-
-// Get first result
-$product = Product::searchJetFirst('laptop');
-
-// Count results
-$count = Product::searchJetCount('laptop');
-
-// Paginated results
-$paginated = Product::searchJetPaginate('laptop', 1, 20);
-```
-
-### Using the Facade
-
-```php
-use SearchJet\Laravel\Facades\SearchJet;
-
-// Search directly
-$results = SearchJet::search('products')->query('laptop');
-
-// Index management
-SearchJet::index('products')->addDocument($document);
-SearchJet::index('products')->addDocuments($documents);
-
-// Analytics
-$analytics = SearchJet::analytics()->getAnalytics();
-```
-
-## 🛠️ Artisan Commands
-
-### Install Command
-
-```bash
-php artisan searchjet:install
-```
-
-Sets up the package configuration and displays setup instructions.
-
-### Index Command
-
-```bash
-# Index from a model
-php artisan searchjet:index products --model=App\\Models\\Product
-
-# Clear and reindex
-php artisan searchjet:index products --model=App\\Models\\Product --clear
-
-# Custom batch size
-php artisan searchjet:index products --model=App\\Models\\Product --batch-size=500
-```
-
-### Search Command
-
-```bash
-# Basic search
-php artisan searchjet:search "laptop" --index=products
-
-# Advanced search
-php artisan searchjet:search "laptop" --index=products --limit=20 --filter="price > 100"
-```
-
-## 📊 Analytics
-
-Track search analytics:
-
-```php
-use SearchJet\Laravel\Facades\SearchJet;
-
-// Get analytics
-$analytics = SearchJet::analytics()->getAnalytics();
-
-// Get popular queries
-$popular = SearchJet::analytics()->getPopularQueries('products');
-
-// Get zero-result queries
-$zeroResults = SearchJet::analytics()->getZeroResultQueries('products');
-
-// Track clicks
-SearchJet::analytics()->trackClick([
-    'query' => 'laptop',
-    'document_id' => '123',
-    'position' => 1,
-    'timestamp' => now()->toISOString(),
-]);
-```
-
-## 🎯 Advanced Features
-
-### Custom Search Configuration
-
-```php
-class Product extends Model
+protected static function booted(): void
 {
-    use Searchable;
-    
-    public function getSearchJetRankingRules(): array
-    {
-        return [
-            'words',
-            'typo',
-            'proximity',
-            'attribute',
-            'sort',
-            'exactness'
-        ];
-    }
-    
-    public function getSearchJetSearchableAttributes(): array
-    {
-        return ['title', 'description', 'tags'];
-    }
-    
-    public function getSearchJetFilterableAttributes(): array
-    {
-        return ['category', 'price', 'brand'];
-    }
-    
-    public function getSearchJetSortableAttributes(): array
-    {
-        return ['price', 'created_at', 'rating'];
-    }
+    static::saved(fn (Product $p) => $p->searchJetSync());
+    static::deleted(fn (Product $p) => $p->searchJetRemove());
 }
 ```
 
-### Caching
-
-Caching is enabled by default. Configure in `config/searchjet.php`:
-
-```php
-'cache' => [
-    'enabled' => true,
-    'ttl' => 300, // 5 minutes
-    'prefix' => 'searchjet:',
-],
-```
-
-### Rate Limiting
-
-Rate limiting is enabled by default:
-
-```php
-'rate_limiting' => [
-    'enabled' => true,
-    'max_requests_per_minute' => 100,
-],
-```
-
-## 🔍 Search Options
-
-### Basic Search Options
-
-```php
-$results = Product::searchJet('laptop', [
-    'limit' => 20,                    // Number of results
-    'offset' => 0,                    // Skip results
-    'attributes_to_retrieve' => ['*'], // Fields to return
-    'attributes_to_highlight' => ['title'], // Fields to highlight
-    'attributes_to_crop' => ['description'], // Fields to crop
-    'crop_length' => 200,             // Crop length
-    'highlight_pre_tag' => '<mark>',  // Highlight start tag
-    'highlight_post_tag' => '</mark>', // Highlight end tag
-]);
-```
-
-### Filtering
-
-```php
-// Simple filter
-$results = Product::searchJet('laptop', [
-    'filter' => 'price > 100'
-]);
-
-// Complex filter
-$results = Product::searchJet('laptop', [
-    'filter' => 'price > 100 AND category = "electronics"'
-]);
-```
-
-### Sorting
-
-```php
-// Single sort
-$results = Product::searchJet('laptop', [
-    'sort' => ['price:asc']
-]);
-
-// Multiple sorts
-$results = Product::searchJet('laptop', [
-    'sort' => ['price:asc', 'rating:desc']
-]);
-```
-
-### Faceting
-
-```php
-$results = Product::searchJet('laptop', [
-    'facets' => ['category', 'brand', 'price']
-]);
-```
-
-## 🧪 Testing
+Import every record:
 
 ```bash
+php artisan searchjet:import "App\Models\Product" --chunk=500
+```
+
+Try a search from the command line:
+
+```bash
+php artisan searchjet:search "laptop" --limit=5
+```
+
+## Analytics
+
+Searches made through `search()` are logged by SearchJet automatically.
+
+```php
+// Report a click on a result (POST /v1/analytics/click). Position is 1-based.
+SearchJet::analytics()->trackClick($documentId, $position, $searchId);
+
+// Summary (GET /v1/search-analytics): top_queries, zero_result_queries, total_searches, search_volume_by_day.
+// $days is capped at your plan's analytics window.
+SearchJet::analytics()->summary(days: 30);
+```
+
+If you run searches somewhere else (not through SearchJet search) and want them in your SearchJet analytics, log them with `POST /v1/search-analytics`. Don't log searches made with `search()`: they are already logged, and every logged search counts towards your monthly search quota.
+
+```php
+SearchJet::analytics()->logSearch('red shoes', resultsCount: 0);
+SearchJet::analytics()->logSearches([            // up to 100 at once
+    ['query' => 'red shoes', 'results_count' => 0],
+    ['query' => 'blue shoes', 'results_count' => 12],
+]);
+```
+
+## Site info
+
+```php
+SearchJet::clientInfo(); // GET /v1/client-info: plan, public_key, usage_limits
+SearchJet::status();     // GET /v1/status: API health, no key needed
+```
+
+## Errors
+
+Every API error throws `SearchJet\Laravel\Exceptions\SearchJetException` with `status` (HTTP code), `errorCode` (the API's code) and `body`:
+
+| Exception | When |
+|---|---|
+| `AuthenticationException` | 401: key missing, wrong, inactive or expired |
+| `RateLimitException` | 429: per-minute limit, or a plan quota (`errorCode` `QUOTA_EXCEEDED`, `DAILY_LIMIT_EXCEEDED`, `quota_exceeded`, `reindex_limit`) |
+| `SearchJetException` | Anything else, including connection failures (`status` is null) |
+
+```php
+use SearchJet\Laravel\Exceptions\RateLimitException;
+
+try {
+    $results = SearchJet::search($q);
+} catch (RateLimitException $e) {
+    report($e);
+    $results = ['results' => []];
+}
+```
+
+## Testing your app
+
+The package uses Laravel's HTTP client, so `Http::fake()` works:
+
+```php
+Http::fake([
+    '*/v1/search*' => Http::response(['search_id' => 'test', 'results' => [], 'total' => 0]),
+]);
+```
+
+## Development
+
+```bash
+composer install
 composer test
 ```
 
-## 📝 Changelog
+## License
 
-Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.
-
-## 🤝 Contributing
-
-Please see [CONTRIBUTING](CONTRIBUTING.md) for details.
-
-## 🔒 Security
-
-If you discover any security related issues, please email security@searchjetengine.com instead of using the issue tracker.
-
-## 📄 License
-
-The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
-
-## 🆘 Support
-
-- [Documentation](https://www.searchjetengine.com/docs/)
-- [GitHub Issues](https://github.com/searchjet/laravel-searchjet/issues)
-- [Email Support](mailto:support@searchjetengine.com)
-
-## 🙏 Credits
-
-- [SearchJet Team](https://github.com/searchjet)
-- [All Contributors](../../contributors)
-
----
-
-Made with ❤️ by the SearchJet team
+MIT

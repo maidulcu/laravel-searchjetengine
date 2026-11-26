@@ -3,28 +3,22 @@
 namespace SearchJet\Laravel\Facades;
 
 use Illuminate\Support\Facades\Facade;
-use SearchJet\Laravel\Services\SearchJetClient;
+use SearchJet\Laravel\SearchJetClient;
 
 /**
- * @method static \SearchJet\Laravel\Services\IndexManager index(string $index)
- * @method static \SearchJet\Laravel\Services\SearchManager search(string $index)
- * @method static \SearchJet\Laravel\Services\AnalyticsManager analytics()
- * @method static string getApiKey()
+ * @method static array search(string $query, array $params = [], array $context = [])
+ * @method static array similar(string $documentId, array $params = [])
+ * @method static array clientInfo()
+ * @method static array status()
+ * @method static \SearchJet\Laravel\Index index()
+ * @method static \SearchJet\Laravel\Analytics analytics()
+ * @method static string searchKey()
  * @method static string getBaseUrl()
- * @method static string|null getSiteId()
- * @method static array get(string $endpoint, array $query = [])
- * @method static array post(string $endpoint, array $data = [])
- * @method static array put(string $endpoint, array $data = [])
- * @method static array delete(string $endpoint)
- * @method static array request(string $method, string $endpoint, array $data = [])
  *
- * @see \SearchJet\Laravel\Services\SearchJetClient
+ * @see SearchJetClient
  */
 class SearchJet extends Facade
 {
-    /**
-     * Get the registered name of the component.
-     */
     protected static function getFacadeAccessor(): string
     {
         return SearchJetClient::class;

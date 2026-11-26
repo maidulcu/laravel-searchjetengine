@@ -2,35 +2,37 @@
 
 namespace SearchJet\Laravel;
 
+use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\ServiceProvider;
-use SearchJet\Laravel\Services\SearchJetClient;
-use SearchJet\Laravel\Commands\InstallCommand;
-use SearchJet\Laravel\Commands\IndexCommand;
+use SearchJet\Laravel\Commands\ImportCommand;
 use SearchJet\Laravel\Commands\SearchCommand;
 
 class SearchJetServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any package services.
-     */
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/searchjet.php', 'searchjet');
 
-        $this->app->singleton(SearchJetClient::class, function ($app) {
+        $this->app->singleton(SearchJetClient::class, function (Application $app) {
+            $config = $app['config']['searchjet'];
+
             return new SearchJetClient(
-                $app['config']['searchjet.api_key'],
-                $app['config']['searchjet.base_url'],
-                $app['config']['searchjet.site_id'] ?? null
+                http: $app->make(HttpFactory::class),
+                apiKey: $config['api_key'] ?? null,
+                searchKey: $config['search_key'] ?? null,
+                baseUrl: $config['base_url'] ?? 'https://app.searchjetengine.com/api',
+                timeout: (int) ($config['http']['timeout'] ?? 10),
+                retries: (int) ($config['http']['retries'] ?? 2),
+                retrySleepMs: (int) ($config['http']['retry_sleep_ms'] ?? 200),
+                cache: $app['cache']->store($config['search_key_cache']['store'] ?? null),
+                searchKeyCacheTtl: (int) ($config['search_key_cache']['ttl'] ?? 3600),
             );
         });
 
         $this->app->alias(SearchJetClient::class, 'searchjet');
     }
 
-    /**
-     * Bootstrap any package services.
-     */
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
@@ -39,8 +41,7 @@ class SearchJetServiceProvider extends ServiceProvider
             ], 'searchjet-config');
 
             $this->commands([
-                InstallCommand::class,
-                IndexCommand::class,
+                ImportCommand::class,
                 SearchCommand::class,
             ]);
         }

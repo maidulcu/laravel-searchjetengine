@@ -21,8 +21,8 @@ We take all security reports seriously and will:
 
 | Version | Status |
 |---------|--------|
-| 1.x     | Actively maintained |
-| < 1.0   | No longer supported |
+| 2.x     | Actively maintained |
+| 1.x     | Not supported (did not work against the API) |
 
 ## Security Best Practices
 

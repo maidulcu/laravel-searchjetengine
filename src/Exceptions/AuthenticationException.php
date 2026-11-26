@@ -2,7 +2,7 @@
 
 namespace SearchJet\Laravel\Exceptions;
 
-class AuthenticationException extends SearchJetException
-{
-    //
-}
+/**
+ * HTTP 401: the key is missing, wrong, inactive or expired.
+ */
+class AuthenticationException extends SearchJetException {}

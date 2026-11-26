@@ -3,33 +3,36 @@
 namespace SearchJet\Laravel\Tests;
 
 use Orchestra\Testbench\TestCase as Orchestra;
+use SearchJet\Laravel\Facades\SearchJet;
 use SearchJet\Laravel\SearchJetServiceProvider;
 
 abstract class TestCase extends Orchestra
 {
-    protected function setUp(): void
+    public const BASE = 'https://app.searchjetengine.test/api';
+
+    protected function getPackageProviders($app): array
     {
-        parent::setUp();
+        return [SearchJetServiceProvider::class];
     }
 
-    protected function getPackageProviders($app)
+    protected function getPackageAliases($app): array
     {
-        return [
-            SearchJetServiceProvider::class,
-        ];
+        return ['SearchJet' => SearchJet::class];
     }
 
-    public function getEnvironmentSetUp($app)
+    protected function defineEnvironment($app): void
     {
-        config()->set('database.default', 'testing');
-        config()->set('database.connections.testing', [
+        $app['config']->set('database.default', 'testing');
+        $app['config']->set('database.connections.testing', [
             'driver' => 'sqlite',
             'database' => ':memory:',
             'prefix' => '',
         ]);
+        $app['config']->set('cache.default', 'array');
 
-        config()->set('searchjet.api_key', 'test-api-key');
-        config()->set('searchjet.base_url', 'https://api.test.com');
-        config()->set('searchjet.site_id', 'test-site-id');
+        $app['config']->set('searchjet.api_key', 'site-api-key');
+        $app['config']->set('searchjet.search_key', 'public-search-key');
+        $app['config']->set('searchjet.base_url', self::BASE);
+        $app['config']->set('searchjet.http.retry_sleep_ms', 0);
     }
 }
